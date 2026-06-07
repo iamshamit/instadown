@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">InstaDown</string>
+    <string name="login_title">Sign in to Instagram</string>
+    <string name="settings_title">Settings</string>
+    <string name="share_target_label">Save with InstaDown</string>
+</resources>

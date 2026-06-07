@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0f172a" />
+  <title>InstaDown</title>
+  <link rel="manifest" href="/static/manifest.webmanifest" />
+  <link rel="icon" type="image/svg+xml" href="/static/icon.svg" />
+  <link rel="apple-touch-icon" href="/static/icon-192.png" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>InstaDown</h1>
+    <p class="subtitle">Save Instagram photos &amp; carousels to your phone</p>
+  </header>
+
+  <main>
+    <section class="card paste">
+      <label for="url" class="label">Instagram post URL</label>
+      <input
+        id="url"
+        type="url"
+        inputmode="url"
+        placeholder="https://www.instagram.com/p/…"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+      />
+      <button id="go" class="primary">Download</button>
+    </section>
+
+    <section id="status" class="card status hidden"></section>
+
+    <section id="results" class="results hidden"></section>
+
+    <section class="card help">
+      <h2>How to share to InstaDown</h2>
+      <ol>
+        <li>Open the Instagram app, find a post.</li>
+        <li>Tap <b>Share</b> (paper airplane).</li>
+        <li>Pick <b>InstaDown</b> from the share sheet.</li>
+        <li>It downloads here — tap <b>Save</b> on each card.</li>
+      </ol>
+      <p class="muted small">First time? You may need to tap <b>More</b> in the share sheet and add InstaDown.</p>
+    </section>
+  </main>
+
+  <script src="/static/app.js" defer></script>
+</body>
+</html>
