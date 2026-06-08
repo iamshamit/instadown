@@ -87,8 +87,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val sharedUrl = extractInstagramUrlFromIntent(intent)
-
         setContent {
             InstaDownTheme {
                 Surface(
@@ -96,7 +94,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     MainScreen(
-                        sharedUrl = sharedUrl,
+                        sharedUrl = null,
                         bridge = bridge,
                         onOpenSettings = { startActivity(Intent(this, SettingsActivity::class.java)) },
                     )
@@ -105,18 +103,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        setIntent(intent)
-        recreate()
-    }
 
-    private fun extractInstagramUrlFromIntent(intent: Intent?): String? {
-        if (intent?.action != Intent.ACTION_SEND) return null
-        val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return null
-        val match = Regex("""https?://(?:www\.)?instagram\.com/\S+""").find(text)
-        return match?.value?.trimEnd('.', ',', ')', ']', ';')
-    }
 }
 
 private sealed interface UiState {
