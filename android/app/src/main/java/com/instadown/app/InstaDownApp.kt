@@ -29,7 +29,7 @@ class InstaDownApp : Application() {
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
-                "instadown_downloads",
+                NotificationHelper.CHANNEL_ID,
                 getString(R.string.notif_channel_name),
                 NotificationManager.IMPORTANCE_DEFAULT,
             ).apply {

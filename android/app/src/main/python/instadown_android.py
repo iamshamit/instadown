@@ -55,7 +55,7 @@ class _CaptureJob:
             self.failed = str(exc)
 
 
-def _configure(cookies_path: str, out_dir: Path) -> None:
+def _configure(cookies_path: str, out_dir: Path, log_path: str = "") -> None:
     """Push our options into gallery-dl's global config."""
     import gallery_dl.config  # type: ignore[import-not-found]
 
@@ -64,7 +64,7 @@ def _configure(cookies_path: str, out_dir: Path) -> None:
     gallery_dl.config.set(("extractor",), "metadata", "none")
     gallery_dl.config.set(("downloader",), "skip", "true")
     gallery_dl.config.set(("output",), "quiet", "true")
-    gallery_dl.config.set(("output",), "logfile", str(out_dir / ".instadown.log"))
+    gallery_dl.config.set(("output",), "logfile", log_path or str(out_dir / ".instadown.log"))
 
     filename = "{category}_{owner_username}_{shortcode}_{num:>02}_{filename}.{extension}"
     gallery_dl.config.set(("extractor", "instagram"), "filename", filename)
@@ -74,7 +74,7 @@ def _configure(cookies_path: str, out_dir: Path) -> None:
     gallery_dl.config.set(("extractor", "instagram"), "cookies", cookies_path)
 
 
-def download(url: str, cookies_path: str, out_dir: str) -> dict[str, Any]:
+def download(url: str, cookies_path: str, out_dir: str, log_path: str = "") -> dict[str, Any]:
     """Download an Instagram post / carousel as image(s). Reels skipped.
 
     Args:
@@ -109,7 +109,7 @@ def download(url: str, cookies_path: str, out_dir: str) -> dict[str, Any]:
     out.mkdir(parents=True, exist_ok=True)
     (out / "archive.txt").touch(exist_ok=True)
 
-    _configure(cookies_path, out)
+    _configure(cookies_path, out, log_path)
 
     job = _CaptureJob(url)
     job.run()
@@ -191,7 +191,7 @@ def fetch_metadata(url: str, cookies_path: str) -> dict:
 
         thumbnails: list = []
         for msg in extractor:
-            if msg[0] == 1:  # Message.Url
+            if msg[0] == 3:  # Message.Url
                 _, item_url, keywords = msg
                 thumb = (
                     keywords.get("thumbnail")

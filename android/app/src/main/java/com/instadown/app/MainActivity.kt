@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val prefillUrl = intent.getStringExtra("prefill_url")
         setContent {
             InstaDownTheme {
                 Surface(
@@ -94,7 +95,7 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background,
                 ) {
                     MainScreen(
-                        sharedUrl = null,
+                        sharedUrl = prefillUrl,
                         bridge = bridge,
                         onOpenSettings = { startActivity(Intent(this, SettingsActivity::class.java)) },
                     )

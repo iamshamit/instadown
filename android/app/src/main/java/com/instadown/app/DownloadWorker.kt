@@ -28,9 +28,6 @@ class DownloadWorker(
             return Result.failure()
         }
 
-        val displayCount = if (selectedSet.isEmpty()) 1 else selectedSet.size
-        NotificationHelper.showProgress(applicationContext, displayCount)
-
         val result = bridge.download(url)
         if (!result.success) {
             NotificationHelper.showFailure(applicationContext, url)
@@ -39,6 +36,8 @@ class DownloadWorker(
 
         val toSave = if (selectedSet.isEmpty()) result.files
             else result.files.filterIndexed { index, _ -> index in selectedSet }
+
+        NotificationHelper.showProgress(applicationContext, toSave.size)
 
         var saved = 0
         toSave.forEach { file ->

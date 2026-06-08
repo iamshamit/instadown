@@ -67,7 +67,7 @@ class PythonBridge(private val context: Context) {
         outDir.listFiles()?.forEach { it.delete() }
 
         val raw: PyObject = try {
-            module.callAttr("download", url, cookiesFile.absolutePath, outDir.absolutePath)
+            module.callAttr("download", url, cookiesFile.absolutePath, outDir.absolutePath, logFile().absolutePath)
         } catch (t: Throwable) {
             return DownloadResult(success = false, error = "Python call failed: ${t.message}")
         }
@@ -101,6 +101,8 @@ class PythonBridge(private val context: Context) {
      * need external storage permissions.
      */
     fun cookiesFile(): File = File(context.filesDir, "instagram-cookies.txt")
+
+    fun logFile(): File = File(context.filesDir, "instadown.log")
 
     /**
      * True if the cookies file exists AND contains a `sessionid`
