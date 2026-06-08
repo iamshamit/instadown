@@ -219,6 +219,43 @@ class PythonBridge(private val context: Context) {
         CookieManager.getInstance().removeAllCookies(null)
         CookieManager.getInstance().flush()
     }
+
+    /**
+     * Fetch metadata for an Instagram post / carousel (thumbnail URLs, count, type).
+     *
+     * Returns a [MetadataResult] with either metadata or an error message.
+     * Never throws — all exceptions are caught and surfaced as `MetadataResult(success=false)`.
+     */
+    fun fetchMetadata(url: String): MetadataResult {
+        val cookiesFile = cookiesFile()
+        if (!cookiesFile.exists()) {
+            return MetadataResult(
+                success = false,
+                error = "Not signed in. Open Settings and sign in to Instagram first.",
+            )
+        }
+        val raw: PyObject = try {
+            module.callAttr("fetch_metadata", url, cookiesFile.absolutePath)
+        } catch (t: Throwable) {
+            return MetadataResult(success = false, error = "Python call failed: ${t.message}")
+        }
+        val json = raw.toString()
+        return try {
+            val obj = JSONObject(json)
+            val ok = obj.optBoolean("ok", false)
+            if (!ok) return MetadataResult(success = false, error = obj.optString("error", "unknown error"))
+            val arr = obj.getJSONArray("thumbnails")
+            val thumbs = (0 until arr.length()).map { arr.getString(it) }
+            MetadataResult(
+                success = true,
+                count = obj.getInt("count"),
+                thumbnails = thumbs,
+                type = obj.optString("type", "single"),
+            )
+        } catch (t: Throwable) {
+            MetadataResult(success = false, error = "Bad response from Python: $json")
+        }
+    }
 }
 
 data class DownloadedFile(
@@ -231,5 +268,13 @@ data class DownloadedFile(
 data class DownloadResult(
     val success: Boolean,
     val files: List<DownloadedFile> = emptyList(),
+    val error: String? = null,
+)
+
+data class MetadataResult(
+    val success: Boolean,
+    val count: Int = 0,
+    val thumbnails: List<String> = emptyList(),
+    val type: String = "single",
     val error: String? = null,
 )
