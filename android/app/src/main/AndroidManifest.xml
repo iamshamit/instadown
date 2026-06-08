@@ -2,15 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Network: required to talk to Instagram. -->
     <uses-permission android:name="android.permission.INTERNET" />
-
-    <!-- Reading & writing files under Downloads/ on Android 10+ uses
-         MediaStore (no permission needed). On Android 9 and below
-         we need WRITE_EXTERNAL_STORAGE for the Downloads/ folder. -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".InstaDownApp"
@@ -32,11 +28,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
 
-            <!-- Share-receiver: appear in the Android share sheet when
-                 a user shares text from Instagram (or anywhere). The
-                 action is android.intent.action.SEND, mime text/*.
-                 We read the URL out of EXTRA_TEXT. -->
+        <activity
+            android:name=".ShareBottomSheetActivity"
+            android:exported="true"
+            android:theme="@style/Theme.InstaDown.Transparent"
+            android:taskAffinity=""
+            android:excludeFromRecents="true">
             <intent-filter android:label="@string/share_target_label">
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -55,5 +54,6 @@
             android:exported="false"
             android:label="@string/settings_title"
             android:theme="@style/Theme.InstaDown" />
+
     </application>
 </manifest>
