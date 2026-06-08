@@ -46,6 +46,8 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
+import coil.imageLoader
+import coil.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -134,14 +136,24 @@ private fun ShareSheet(
     onDownload: (IntArray) -> Unit,
 ) {
     var state by remember { mutableStateOf<SheetState>(SheetState.Loading) }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     LaunchedEffect(url) {
         val result = withContext(Dispatchers.IO) { bridge.fetchMetadata(url) }
-        state = when {
+        val newState = when {
             !result.success && result.error?.contains("signed in", ignoreCase = true) == true ->
                 SheetState.NotSignedIn
             !result.success -> SheetState.Err(result.error ?: "unknown error")
             else -> SheetState.Ready(result)
+        }
+        state = newState
+        // Prefetch all thumbnails immediately so they're in cache when the grid renders
+        if (newState is SheetState.Ready) {
+            newState.result.thumbnails.forEach { thumbUrl ->
+                context.imageLoader.enqueue(
+                    ImageRequest.Builder(context).data(thumbUrl).allowRgb565(true).build()
+                )
+            }
         }
     }
 
@@ -354,10 +366,12 @@ private fun ReadyContent(
                             },
                     ) {
                         val shimmerBrush = shimmerBrush()
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         SubcomposeAsyncImage(
-                            model = coil.request.ImageRequest.Builder(androidx.compose.ui.platform.LocalContext.current)
+                            model = ImageRequest.Builder(context)
                                 .data(thumbUrl)
                                 .crossfade(true)
+                                .allowRgb565(true)
                                 .build(),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize().alpha(if (selected) 1f else 0.35f),

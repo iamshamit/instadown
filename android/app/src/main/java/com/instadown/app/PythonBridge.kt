@@ -53,7 +53,7 @@ class PythonBridge(private val context: Context) {
      * an error message. Never throws — all exceptions are caught
      * inside Python and surfaced as `DownloadResult(success=false)`.
      */
-    fun download(url: String): DownloadResult {
+    fun download(url: String, customOutDir: File? = null): DownloadResult {
         val cookiesFile = cookiesFile()
         if (!cookiesFile.exists()) {
             return DownloadResult(
@@ -62,9 +62,8 @@ class PythonBridge(private val context: Context) {
             )
         }
 
-        val outDir = File(context.cacheDir, "downloads").apply { mkdirs() }
-        // Clean previous run's files so we don't accumulate junk.
-        outDir.listFiles()?.forEach { it.delete() }
+        val outDir = (customOutDir ?: File(context.cacheDir, "downloads")).apply { mkdirs() }
+        outDir.listFiles()?.forEach { it.deleteRecursively() }
 
         val raw: PyObject = try {
             module.callAttr("download", url, cookiesFile.absolutePath, outDir.absolutePath, logFile().absolutePath)

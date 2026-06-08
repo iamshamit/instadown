@@ -8,18 +8,27 @@ import androidx.core.app.NotificationCompat
 
 object NotificationHelper {
     const val CHANNEL_ID = "instadown_downloads"
-    private const val NOTIF_ID = 1001
+    const val NOTIF_ID = 1001        // foreground / progress — cancelled when service stops
+    private const val NOTIF_RESULT_ID = 1002  // success or failure — separate ID, survives service stop
 
-    fun showProgress(context: Context, count: Int) {
-        val text = if (count == 1) "Downloading 1 photo…" else "Downloading $count photos…"
-        val notif = NotificationCompat.Builder(context, CHANNEL_ID)
+    fun buildProgress(context: Context, current: Int, total: Int): android.app.Notification {
+        val text = when {
+            total > 0 -> "Downloading $current / $total photos…"
+            current > 0 -> "Downloading $current photos…"
+            else -> "Downloading…"
+        }
+        return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download)
             .setContentTitle(context.getString(R.string.app_name))
             .setContentText(text)
-            .setProgress(0, 0, true)
+            .setProgress(total, current, total == 0)
             .setOngoing(true)
             .build()
-        context.getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notif)
+    }
+
+    fun showProgress(context: Context, current: Int, total: Int) {
+        context.getSystemService(NotificationManager::class.java)
+            .notify(NOTIF_ID, buildProgress(context, current, total))
     }
 
     fun showComplete(context: Context, saved: Int) {
@@ -31,25 +40,25 @@ object NotificationHelper {
             .setContentText(text)
             .setAutoCancel(true)
             .build()
-        context.getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notif)
+        context.getSystemService(NotificationManager::class.java).notify(NOTIF_RESULT_ID, notif)
     }
 
-    fun showFailure(context: Context, url: String) {
-        val retryIntent = Intent(context, MainActivity::class.java).apply {
-            putExtra("prefill_url", url)
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+    fun showFailure(context: Context, error: String) {
+        val copyIntent = Intent(context, CopyErrorReceiver::class.java).apply {
+            putExtra(CopyErrorReceiver.EXTRA_ERROR, error)
         }
-        val pi = PendingIntent.getActivity(
-            context, 0, retryIntent,
+        val pi = PendingIntent.getBroadcast(
+            context, 0, copyIntent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val notif = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_notify_error)
-            .setContentTitle(context.getString(R.string.app_name))
-            .setContentText(context.getString(R.string.notif_failed))
+            .setContentTitle("Download failed — tap to copy error")
+            .setContentText(error)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(error))
             .setAutoCancel(true)
             .setContentIntent(pi)
             .build()
-        context.getSystemService(NotificationManager::class.java).notify(NOTIF_ID, notif)
+        context.getSystemService(NotificationManager::class.java).notify(NOTIF_RESULT_ID, notif)
     }
 }

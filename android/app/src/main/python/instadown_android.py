@@ -14,8 +14,12 @@ a package import that Chaquopy can't see.
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 from typing import Any
+
+# gallery-dl uses global config and generator state — only one call at a time.
+_gdl_lock = threading.Lock()
 
 logging.basicConfig(
     level=logging.WARNING,
@@ -60,10 +64,13 @@ def _configure(cookies_path: str, out_dir: Path, log_path: str = "") -> None:
     import gallery_dl.config  # type: ignore[import-not-found]
 
     gallery_dl.config.set(("extractor",), "base-directory", str(out_dir))
-    gallery_dl.config.set(("extractor",), "archive", str(out_dir / "archive.txt"))
+    gallery_dl.config.set(("extractor",), "archive", None)
     gallery_dl.config.set(("extractor",), "metadata", "none")
     gallery_dl.config.set(("downloader",), "skip", "true")
-    gallery_dl.config.set(("output",), "quiet", "true")
+    gallery_dl.config.set(("downloader",), "retries", 1)
+    gallery_dl.config.set(("downloader",), "timeout", 15)
+    gallery_dl.config.set(("downloader",), "rate", "500k")
+    gallery_dl.config.set(("output",), "quiet", True)
     gallery_dl.config.set(("output",), "logfile", log_path or str(out_dir / ".instadown.log"))
 
     filename = "{category}_{owner_username}_{shortcode}_{num:>02}_{filename}.{extension}"
@@ -107,18 +114,17 @@ def download(url: str, cookies_path: str, out_dir: str, log_path: str = "") -> d
     if out.exists():
         shutil.rmtree(str(out))
     out.mkdir(parents=True, exist_ok=True)
-    (out / "archive.txt").touch(exist_ok=True)
 
-    _configure(cookies_path, out, log_path)
+    with _gdl_lock:
+        _configure(cookies_path, out, log_path)
 
-    job = _CaptureJob(url)
-    job.run()
-
-    if job.failed:
-        return {"ok": False, "error": f"download crashed: {job.failed}"}
+        job = _CaptureJob(url)
+        job.run()
 
     # Collect every image file gallery-dl wrote anywhere under out_dir.
     # gallery-dl may create subdirectories (e.g. out_dir/instagram/user/).
+    # Scan regardless of job.failed — internal gallery-dl errors (e.g. archive
+    # write failures) must not discard files that were already downloaded.
     saved = sorted(
         [
             f
@@ -133,7 +139,7 @@ def download(url: str, cookies_path: str, out_dir: str, log_path: str = "") -> d
     if not saved:
         return {
             "ok": False,
-            "error": (
+            "error": job.failed or (
                 "no media downloaded — the post may be private, the link "
                 "may be wrong, or your login cookies have expired. "
                 "Re-sign in from Settings and try again."
@@ -179,26 +185,27 @@ def fetch_metadata(url: str, cookies_path: str) -> dict:
         import gallery_dl.extractor as gdl_ext
         import gallery_dl.config as gdl_cfg
 
-        gdl_cfg.set(("extractor", "instagram"), "cookies", cookies_path)
-        gdl_cfg.set(("extractor", "instagram"), "videos", False)
-        gdl_cfg.set(("output",), "quiet", "true")
+        with _gdl_lock:
+            gdl_cfg.set(("extractor", "instagram"), "cookies", cookies_path)
+            gdl_cfg.set(("extractor", "instagram"), "videos", False)
+            gdl_cfg.set(("output",), "quiet", "true")
 
-        extractor = gdl_ext.find(url)
-        if extractor is None:
-            return {"ok": False, "error": "unsupported URL — only instagram.com links work"}
+            extractor = gdl_ext.find(url)
+            if extractor is None:
+                return {"ok": False, "error": "unsupported URL — only instagram.com links work"}
 
-        extractor.initialize()
+            extractor.initialize()
 
-        thumbnails: list = []
-        for msg in extractor:
-            if msg[0] == 3:  # Message.Url
-                _, item_url, keywords = msg
-                thumb = (
-                    keywords.get("thumbnail")
-                    or keywords.get("display_url")
-                    or str(item_url)
-                )
-                thumbnails.append(str(thumb))
+            thumbnails: list = []
+            for msg in extractor:
+                if msg[0] == 3:  # Message.Url
+                    _, item_url, keywords = msg
+                    thumb = (
+                        keywords.get("thumbnail")
+                        or keywords.get("display_url")
+                        or str(item_url)
+                    )
+                    thumbnails.append(str(thumb))
 
         if not thumbnails:
             return {
