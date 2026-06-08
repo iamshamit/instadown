@@ -3,4 +3,6 @@
     <string name="login_title">Sign in to Instagram</string>
     <string name="settings_title">Settings</string>
     <string name="share_target_label">Save with InstaDown</string>
+    <string name="notif_channel_name">Downloads</string>
+    <string name="notif_failed">Download failed — tap to retry</string>
 </resources>
