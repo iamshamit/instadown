@@ -16,11 +16,17 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
-        // abiFilters goes here, inside the `ndk` block, per Chaquopy
-        // docs. arm64-v8a covers 95%+ of modern Android devices;
-        // armeabi-v7a covers older 32-bit ones; x86_64 is for emulators.
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
         }
     }
 
