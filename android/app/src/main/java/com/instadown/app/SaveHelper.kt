@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
+import androidx.documentfile.provider.DocumentFile
 import java.io.File
 
 /**
@@ -22,17 +23,43 @@ object SaveHelper {
 
     private const val SUBDIR = "InstaDown"
 
-    /** Copy [src] to Downloads/InstaDown/ and return the resulting Uri. */
+    /** Copy [src] to the user's chosen folder (or Downloads/InstaDown/ by default). */
     fun saveToDownloads(context: Context, src: File): Uri {
         require(src.isFile) { "source not found: $src" }
         val mime = guessMime(src.name)
         val name = makeUniqueName(src.name)
+
+        val customUriStr = ThemePrefs.getStorageUri()
+        if (customUriStr != null) {
+            val treeUri = Uri.parse(customUriStr)
+            val dir = DocumentFile.fromTreeUri(context, treeUri)
+            if (dir != null && dir.canWrite()) {
+                return saveToDocumentFile(context, src, dir, name, mime)
+            }
+            // Permission was revoked — fall back to default and clear the pref.
+            ThemePrefs.clearStorage()
+        }
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             saveViaMediaStore(context, src, name, mime)
         } else {
             saveLegacy(context, src, name)
         }
+    }
+
+    private fun saveToDocumentFile(
+        context: Context,
+        src: File,
+        dir: DocumentFile,
+        name: String,
+        mime: String,
+    ): Uri {
+        val newFile = dir.createFile(mime, name)
+            ?: error("Could not create file in chosen folder")
+        context.contentResolver.openOutputStream(newFile.uri)?.use { out ->
+            src.inputStream().use { it.copyTo(out) }
+        } ?: error("Could not open output stream for ${newFile.uri}")
+        return newFile.uri
     }
 
     private fun saveViaMediaStore(

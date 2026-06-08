@@ -8,8 +8,7 @@ class InstaDownApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        // Chaquopy requires explicit Python.start() with an AndroidPlatform
-        // before any Python.getInstance() call.
+        ThemePrefs.init(this)
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(this))
         }

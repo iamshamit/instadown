@@ -17,13 +17,12 @@ import logging
 from pathlib import Path
 from typing import Any
 
-# gallery-dl writes to stderr at INFO level by default, which on
-# Android goes to logcat. We quiet it down to WARNING so logcat
-# stays readable; the user sees the result via the returned dict.
 logging.basicConfig(
     level=logging.WARNING,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
+
+_IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 
 def _human(n: int) -> str:
@@ -35,42 +34,21 @@ def _human(n: int) -> str:
 
 
 class _CaptureJob:
-    """Subclass of gallery-dl's DownloadJob that records saved files.
+    """Thin wrapper around gallery-dl's DownloadJob.
 
-    gallery-dl invokes ``handle_url`` for each URL the extractor
-    produces. A path of ``"-"`` means the URL was skipped because it
-    was already in the archive; otherwise the path is where the file
-    was saved.
+    We no longer monkey-patch handle_url (the signature changed across
+    gallery-dl versions and caused a TypeError). Instead we let the job
+    run normally and collect results by scanning the output directory
+    afterwards.
     """
 
     def __init__(self, url: str) -> None:
         import gallery_dl.job  # type: ignore[import-not-found]
 
         self._job = gallery_dl.job.DownloadJob(url)
-        self.saved: list[Path] = []
-        self.skipped = 0
         self.failed: str | None = None
 
-    def handle_url(self, url, filename, kwdict):  # noqa: ANN001
-        pathfmt = self._job.handle_url(url, filename, kwdict)
-        if pathfmt is None:
-            return None
-        s = str(pathfmt)
-        if s == "-":
-            self.skipped += 1
-        else:
-            self.saved.append(Path(s))
-        return pathfmt
-
     def run(self) -> None:
-        import types
-
-        # Bind our override onto the inner gallery-dl job instance.
-        # ``handle_url`` is the only hook we need — gallery-dl calls
-        # it once per resolved media URL.
-        self._job.handle_url = types.MethodType(  # type: ignore[method-assign]
-            _CaptureJob.handle_url, self._job
-        )
         try:
             self._job.run()
         except Exception as exc:  # noqa: BLE001
@@ -92,7 +70,7 @@ def _configure(cookies_path: str, out_dir: Path) -> None:
     gallery_dl.config.set(("extractor", "instagram"), "filename", filename)
     gallery_dl.config.set(("extractor", "instagram"), "format", "jpg:best")
     # Reels are out of scope for v0.1 — we only download images.
-    gallery_dl.config.set(("extractor", "instagram"), "videos", "false")
+    gallery_dl.config.set(("extractor", "instagram"), "videos", False)
     gallery_dl.config.set(("extractor", "instagram"), "cookies", cookies_path)
 
 
@@ -124,7 +102,10 @@ def download(url: str, cookies_path: str, out_dir: str) -> dict[str, Any]:
             ),
         }
 
+    import shutil
     out = Path(out_dir)
+    if out.exists():
+        shutil.rmtree(str(out))
     out.mkdir(parents=True, exist_ok=True)
     (out / "archive.txt").touch(exist_ok=True)
 
@@ -136,9 +117,20 @@ def download(url: str, cookies_path: str, out_dir: str) -> dict[str, Any]:
     if job.failed:
         return {"ok": False, "error": f"download crashed: {job.failed}"}
 
-    if not job.saved:
-        # gallery-dl silently bails on login redirects, deleted posts,
-        # etc. without raising. Detect by checking if any file appeared.
+    # Collect every image file gallery-dl wrote anywhere under out_dir.
+    # gallery-dl may create subdirectories (e.g. out_dir/instagram/user/).
+    saved = sorted(
+        [
+            f
+            for f in out.rglob("*")
+            if f.is_file()
+            and f.suffix.lower() in _IMAGE_SUFFIXES
+            and not f.name.startswith(".")
+        ],
+        key=lambda f: f.stat().st_mtime,
+    )
+
+    if not saved:
         return {
             "ok": False,
             "error": (
@@ -157,6 +149,6 @@ def download(url: str, cookies_path: str, out_dir: str) -> dict[str, Any]:
                 "size_human": _human(f.stat().st_size),
                 "path": str(f),
             }
-            for f in job.saved
+            for f in saved
         ],
     }
