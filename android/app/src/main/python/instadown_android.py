@@ -152,3 +152,65 @@ def download(url: str, cookies_path: str, out_dir: str) -> dict[str, Any]:
             for f in saved
         ],
     }
+
+
+def warmup() -> None:
+    """Pre-import gallery-dl modules to eliminate first-call import latency."""
+    import gallery_dl.extractor  # noqa: F401
+    import gallery_dl.config     # noqa: F401
+
+
+def fetch_metadata(url: str, cookies_path: str) -> dict:
+    """Collect image metadata without downloading files.
+
+    Uses gallery-dl's extractor iterator — only fetches post JSON from
+    Instagram, never writes image files to disk.
+
+    Returns:
+        {"ok": True,  "count": N, "thumbnails": [...], "type": "single"|"carousel"}
+        {"ok": False, "error": "..."}
+    """
+    if not url:
+        return {"ok": False, "error": "empty URL"}
+    if not cookies_path or not Path(cookies_path).is_file():
+        return {"ok": False, "error": "not signed in"}
+
+    try:
+        import gallery_dl.extractor as gdl_ext
+        import gallery_dl.config as gdl_cfg
+
+        gdl_cfg.set(("extractor", "instagram"), "cookies", cookies_path)
+        gdl_cfg.set(("extractor", "instagram"), "videos", False)
+        gdl_cfg.set(("output",), "quiet", "true")
+
+        extractor = gdl_ext.find(url)
+        if extractor is None:
+            return {"ok": False, "error": "unsupported URL — only instagram.com links work"}
+
+        extractor.initialize()
+
+        thumbnails: list = []
+        for msg in extractor:
+            if msg[0] == 1:  # Message.Url
+                _, item_url, keywords = msg
+                thumb = (
+                    keywords.get("thumbnail")
+                    or keywords.get("display_url")
+                    or str(item_url)
+                )
+                thumbnails.append(str(thumb))
+
+        if not thumbnails:
+            return {
+                "ok": False,
+                "error": "no media found — the post may be private, a Reel, or the link is wrong",
+            }
+
+        return {
+            "ok": True,
+            "count": len(thumbnails),
+            "thumbnails": thumbnails,
+            "type": "carousel" if len(thumbnails) > 1 else "single",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "error": str(exc)}
